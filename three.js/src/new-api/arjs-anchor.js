@@ -52,14 +52,6 @@ ARjs.Anchor = function(arSession, markerParameters){
 			ARjs.MarkersAreaUtils.storeMarkersAreaFileFromResolution(arContext.parameters.trackingBackend, resolutionW, resolutionH)
 		}
 
-		// if there is no ARjsMultiMarkerFile, build a default one
-		if( localStorage.getItem('ARjsMultiMarkerFile') === null ){
-			ARjs.MarkersAreaUtils.storeDefaultMultiMarkerFile(arContext.parameters.trackingBackend)
-		}
-		
-		// get multiMarkerFile from localStorage
-		console.assert( localStorage.getItem('ARjsMultiMarkerFile') !== null )
-		var multiMarkerFile = localStorage.getItem('ARjsMultiMarkerFile')
 
 		// set controlledObject depending on changeMatrixMode
 		if( markerParameters.changeMatrixMode === 'modelViewMatrix' ){
@@ -67,9 +59,20 @@ ARjs.Anchor = function(arSession, markerParameters){
 		}else if( markerParameters.changeMatrixMode === 'cameraTransformMatrix' ){
 			var parent3D = camera
 		}else console.assert(false)
-	
-		// build a multiMarkerControls
-		var multiMarkerControls = ARjs.MarkersAreaControls.fromJSON(arContext, parent3D, controlledObject, multiMarkerFile)
+		
+		// if there is no ARjsMultiMarkerFile, build a one
+		var multiMarkerControls;
+		if( localStorage.getItem('ARjsMultiMarkerFile') === null ){
+			multiMarkerControls = this.genMultiMarker(arContext, parent3D, controlledObject, [
+				{
+					parameters: markerParameters,
+					pose: new THREE.Matrix4().makeTranslation(0,0,0)
+				}
+			]);
+		} else {
+			multiMarkerControls = ARjs.MarkersAreaControls.fromJSON(arContext, parent3D, controlledObject, localStorage.getItem('ARjsMultiMarkerFile'));
+		}
+		
 		this.controls = multiMarkerControls
 
 		// honor markerParameters.changeMatrixMode
@@ -135,3 +138,36 @@ ARjs.Anchor = function(arSession, markerParameters){
 		}
 	}
 }
+
+
+
+ARjs.Anchor.prototype.genMultiMarker = function(arToolkitContext, parent3D, markerRoot, multiMarkerFile, parameters){
+	// declare variables
+	var subMarkersControls = []
+	var subMarkerPoses = []
+	// handle default arguments
+	var parameters = parameters || {}
+
+	// prepare the parameters
+	multiMarkerFile.forEach(function(item){
+		// create a markerRoot
+		var markerRoot = new THREE.Object3D()
+		parent3D.add(markerRoot)
+
+		// create markerControls for our markerRoot
+		var subMarkerControls = new THREEx.ArMarkerControls(arToolkitContext, markerRoot, item.parameters);
+
+		subMarkersControls.push(subMarkerControls)
+		subMarkerPoses.push(item.pose)
+	})
+	
+	parameters.subMarkersControls = subMarkersControls;
+	parameters.subMarkerPoses = subMarkerPoses;
+	
+	// create a new THREEx.ArMultiMarkerControls
+	var multiMarkerControls = new THREEx.ArMultiMarkerControls(arToolkitContext, markerRoot, parameters)
+
+	// return it
+	return multiMarkerControls	
+}
+
